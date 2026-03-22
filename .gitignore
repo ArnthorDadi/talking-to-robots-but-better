@@ -1,0 +1,11 @@
+# IDEs
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Common
+*.log
+.claude/
+.opencode/
