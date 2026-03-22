@@ -18,6 +18,8 @@ Run these commands in parallel:
 - `git diff --cached` - staged change content
 - `git log --oneline -10` - recent commits for style reference
 
+**If no changes found:** Tell the user "No changes to commit." and stop.
+
 ### 1.2 Analyze and group files
 
 Apply these heuristics to group files into commits:
@@ -58,9 +60,15 @@ Group 2: "commit message" [REASON]
 
 Ask: "Does this plan make sense?"
 
-**If Yes** → proceed to Phase 2
+**Valid approvals:** Direct "yes", "y", "go ahead", "do it", "sure", "sounds good", "looks good", or any clear
+affirmative.
 
-**If No** → accept modifications:
+**Not approvals:** "no", "n", any request for changes, any question (answer the question, then re-ask "Does this plan
+make sense?"), or any ambiguous response.
+
+**If user approves:** Proceed to Phase 2.
+
+**If user requests changes:** Accept these modifications:
 
 - Merge groups: "merge group 2 and 3"
 - Move files: "move file X to group 1"
@@ -69,66 +77,82 @@ Ask: "Does this plan make sense?"
 - Add new group
 - Reorder groups
 
-Re-display plan with changes, re-ask until approved.
+Re-display the updated plan, then ask again: "Does this plan make sense?" Repeat until approved.
 
 ---
 
-## Phase 2: Commit Loop
+## Phase 2: Commit Each Group
 
-For each group in order:
+Process groups one at a time, in order. Do not batch multiple groups into a single commit. Do not proceed to the next
+group until the current one is fully committed or explicitly skipped.
 
-### 2.1 Stage the files
+### 2.1 Get approval for this group (GATE)
 
-Stage all files in the current group.
-
-### 2.2 Get commit message
+**This is a mandatory gate. Do not stage files, run git commands, or create commits without approval.**
 
 Call the `suggest-commit` skill with the list of files in this group.
 
-### 2.3 Present for approval
-
-Show the user:
+Present to the user:
 
 - Files to be committed
 - Proposed commit message
-- Reasoning for this grouping
+- Brief explanation of why these files are grouped together
 
 Ask: "Should I commit this?"
 
-### 2.4 Handle response
+**Wait for explicit approval before continuing.**
 
-**If Yes** → commit with the message, move to next group
+**Approvals are ONLY:**
 
-**If No** → ask what to do:
+- "Yes", "y", "go ahead", "do it", "commit it", "yes, commit", "sure", "sounds good"
 
-- **Discard**: Unstage and remove from plan (user will handle manually)
-- **Hold**: Unstage and mark as "pending" - will be addressed in Phase 3
-- **Reassign**: Move files to another existing group (re-display that group's plan)
-- **Edit message**: Let user write message directly, then re-ask "Should I commit this?"
-- **Alternative message**: Call suggest-commit again (optionally with hint), present alternatives, let user pick, then
-  re-ask
+**NOT approvals:**
 
-Loop back to 2.3 after any modification.
+- "No", "n", "not yet", "maybe", "I guess", "if you think so", or any ambiguous/conditional response
+- Any request to change the message, move files, or modify the group
+- Any question about the group (answer the question, then re-ask "Should I commit this?")
+
+**If user does NOT approve (any non-affirmative response):**
+
+- To discard the group: Say "Okay, I'll skip this group." Move to next group.
+- To modify the message: Use `suggest-commit` again with hints from user's feedback, present alternatives, ask again.
+- To change the group: Update the files, present the new grouping, ask again.
+- To hold for later: Say "Okay, I'll skip this group for now." Mark as pending for Phase 3.
+
+### 2.2 Stage the files
+
+Run `git add <files>` for all files in this group.
+
+**If git add fails:** Tell the user the error. Ask how to proceed. Do not commit.
+
+### 2.3 Commit
+
+Run `git commit -m "<approved message>"`.
+
+**If git commit fails:** Tell the user the error. Unstage the files. Ask how to proceed.
+
+### 2.4 Move to next group
+
+Repeat from step 2.1. If no more groups remain, proceed to Phase 3.
 
 ---
 
 ## Phase 3: Handle Remaining Files
 
-After all groups processed, check for any remaining uncommitted/ungrouped files.
+After all groups are processed, check for any files that weren't committed.
 
-### 3.1 Acknowledge remaining files
+### 3.1 Check for remaining files
 
-List any files that weren't committed and ask: "What should I do with these remaining files?"
+Run `git status --porcelain`.
 
-**If user sees no connection** → offer to create a catch-all group, then proceed through Phase 2 for that group
+**If no remaining files:** Display the summary (see below).
 
-**If user says not ready** → acknowledge and exit. The files remain unstaged for them to handle later.
+**If files remain:** List them and ask: "What should I do with these remaining files?"
 
----
+- If user sees no connection: Offer to create a catch-all group, then repeat Phase 2 for that group.
+- If user says not ready: Acknowledge and exit. Files remain unstaged.
 
-## Summary
-
-After all commits, display:
+### 3.2 Display summary
 
 ```
 Created X commits:
